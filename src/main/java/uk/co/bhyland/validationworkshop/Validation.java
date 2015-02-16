@@ -3,9 +3,11 @@ package uk.co.bhyland.validationworkshop;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * The Validation class represents a disjoint union (aka sum type) of either
@@ -20,14 +22,58 @@ public abstract class Validation<E, T> {
     Implement the following to make the tests pass.
     Feel free to add to or change anything about the implementation, so long as the tests still pass and the intent of the class remains.
     */
-
+    
     private Validation() {}
+
+    private static class Success<E, T> extends Validation<E, T>
+    {
+        private final T value;
+
+        public Success(T value)
+        {
+            this.value = value;
+        }
+        
+        @Override
+        public <U> U fold(Function<List<E>, U> ifFailure, Function<T, U> ifSuccess)
+        {
+            return ifSuccess.apply(value);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Success [value=" + value + "]";
+        }
+    }
+    
+    private static class Failure<E, T> extends Validation<E, T>
+    {
+        private final List<E> failures;
+
+        public Failure(List<E> failures)
+        {
+            this.failures = failures;
+        }
+        
+        @Override
+        public <U> U fold(Function<List<E>, U> ifFailure, Function<T, U> ifSuccess)
+        {
+            return ifFailure.apply(failures);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Failure [failures=" + failures + "]";
+        }
+    }
 
     /**
      * Produce a Validation representing the success value of type T.
      */
     public static <E, T> Validation<E, T> success(final T value) {
-        throw new UnsupportedOperationException("not implemented yet");
+        return new Success<E, T>(value);
     }
 
     /**
@@ -35,21 +81,37 @@ public abstract class Validation<E, T> {
      */
     @SafeVarargs
     public static <E, T> Validation<E, T> failure(final E value, final E... values) {
-        throw new UnsupportedOperationException("not implemented yet");
+        return new Failure<>(makeNonEmptyList(value, values));
+    }
+    
+    private static <E, T> Validation<E, T> failure(List<E> errors) {
+        return new Failure<>(errors);
+    }
+
+    private <U> Validation<E, U> makeFailure(List<E> errors)
+    {
+        return Validation.<E, U>failure(errors);
+    }
+
+    private <U> Validation<E, U> makeSuccess(U value)
+    {
+        return success(value);
+    }
+    
+    /**
+     * Convenience to test what this Validation represents while ignoring its contained value(s).
+     */
+    public final boolean isSuccess()
+    {
+        return fold(es -> false, s -> true);
     }
 
     /**
      * Convenience to test what this Validation represents while ignoring its contained value(s).
      */
-    public boolean isSuccess() {
-        throw new UnsupportedOperationException("not implemented yet");
-    }
-
-    /**
-     * Convenience to test what this Validation represents while ignoring its contained value(s).
-     */
-    public boolean isFailure() {
-        throw new UnsupportedOperationException("not implemented yet");
+    public final boolean isFailure()
+    {
+        return !isSuccess();
     }
 
     // You may find this utility function useful
@@ -67,20 +129,30 @@ public abstract class Validation<E, T> {
     }
 
     // You may find this utility function useful
-    protected static <A> A[] getTailOfList(final List<A> nonEmptyList) {
+    protected static <A> A[] getTailOfList(final List<A> nonEmptyList)
+    {
         @SuppressWarnings("unchecked")
         final A[] tail = (A[]) new Object[nonEmptyList.size() - 1];
-        for (int i = 1; i < nonEmptyList.size(); i++) {
+        for (int i = 1; i < nonEmptyList.size(); i++)
+        {
             tail[i - 1] = nonEmptyList.get(i);
         }
         return tail;
     }
 
     // You may find this utility function useful
-    protected static <A> List<A> combineLists(final List<A> first, final List<A> second) {
+    @SafeVarargs
+    protected static <A> List<A> combineLists(final List<A> first, final List<A> second, final List<A>... rest)
+    {
         final List<A> combined = new ArrayList<>();
         combined.addAll(first);
         combined.addAll(second);
+
+        for (List<A> as : rest)
+        {
+            combined.addAll(as);
+        }
+
         return combined;
     }
 
@@ -88,16 +160,24 @@ public abstract class Validation<E, T> {
      * Return the success value of this Validation, if it represents a success; otherwise, return the supplied default value.
      * The given supplier should only be invoked if its return value is required.
      */
-    public T getOrElse(final Supplier<T> defaultValue) {
-        throw new UnsupportedOperationException("not implemented yet");
+    public final T getOrElse(final Supplier<T> defaultValue)
+    {
+        return fold(
+            es -> defaultValue.get(),
+            s -> s
+        );
     }
 
     /**
      * Return this Validation, if it represents a success; otherwise, return the supplied default Validation.
      * The given supplier should only be invoked if its return value is required.
      */
-    public Validation<E, T> orElse(final Supplier<Validation<E, T>> defaultValue) {
-        throw new UnsupportedOperationException("not implemented yet");
+    public final Validation<E, T> orElse(Supplier<Validation<E, T>> defaultValue)
+    {
+        return fold(
+            es -> defaultValue.get(),
+            s -> this
+        );
     }
 
     /**
@@ -108,8 +188,31 @@ public abstract class Validation<E, T> {
      *      Many things can be implemented in terms of fold.
      *      What procedural code structure is represented by fold?
      */
-    public <U> U fold(final Function<List<E>, U> ifFailure, final Function<T, U> ifSuccess) {
-        throw new UnsupportedOperationException("not implemented yet");
+
+    public abstract <U> U fold(final Function<List<E>, U> ifFailure, final Function<T, U> ifSuccess);
+
+    @SafeVarargs
+    public static <E> void ifFailure(
+        final Consumer<List<E>> ifFailure, 
+        Validation<E, ?> validation,
+        Validation<E, ?>... moreValidations)
+    {
+        validation.ifFailure(ifFailure);
+        
+        for (Validation<E, ?> v : moreValidations)
+        {
+            v.ifFailure(ifFailure);
+        }
+    }
+    
+    @SafeVarargs
+    public static <E> List<E> reduceErrors(
+        List<E> allErrors, 
+        Validation<E, ?> validation,
+        Validation<E, ?>... moreValidations)
+    {
+        ifFailure((es) -> allErrors.addAll(es), validation, moreValidations);
+        return allErrors;
     }
 
     /**
@@ -118,8 +221,12 @@ public abstract class Validation<E, T> {
      *
      * Not tested: implementing this is optional.
      */
-    public void ifSuccess(final Consumer<T> ifSuccess) {
-        throw new UnsupportedOperationException("not implemented yet");
+    public final void ifSuccess(final Consumer<T> ifSuccess)
+    {
+        fold(
+            es -> null,
+            s -> { ifSuccess.accept(s); return null; }
+        );
     }
 
     /**
@@ -128,8 +235,12 @@ public abstract class Validation<E, T> {
      *
      * Not tested: implementing this is optional.
      */
-    public void ifFailure(final Consumer<List<E>> ifFailure) {
-        throw new UnsupportedOperationException("not implemented yet");
+    public final void ifFailure(final Consumer<List<E>> ifFailure)
+    {
+        fold(
+            es -> { ifFailure.accept(es); return null; },
+            s -> null
+        );
     }
 
     /**
@@ -138,7 +249,11 @@ public abstract class Validation<E, T> {
      * The given function should only be invoked if its return value is required.
      */
     public <U> Validation<E, U> map(final Function<T, U> f) {
-        throw new UnsupportedOperationException("not implemented yet");
+        
+        return fold(
+            es -> this.<U>makeFailure(es),
+            t -> makeSuccess(f.apply(t))
+        );
     }
 
     /**
@@ -147,7 +262,11 @@ public abstract class Validation<E, T> {
      * The given function should only be invoked if its return value is required.
      */
     public <U> Validation<E, U> flatMap(final Function<T, Validation<E, U>> f) {
-        throw new UnsupportedOperationException("not implemented yet");
+        
+        return fold(
+            es -> this.<U>makeFailure(es),
+            t -> f.apply(t)
+        );
     }
 
     /**
@@ -156,7 +275,7 @@ public abstract class Validation<E, T> {
      * You won't miss much if you skip this, but it is tested and is used in some of the example code.
      */
     public static <E, A, B> List<Validation<E, B>> mapInputs(final List<A> inputs, final Function<A, Validation<E, B>> f) {
-        throw new UnsupportedOperationException("not implemented yet");
+        return inputs.stream().map(f).collect(Collectors.toList());
     }
 
     /**
@@ -164,8 +283,8 @@ public abstract class Validation<E, T> {
      * Unfortunately, List.flatMap() doesn't actually exist, although Stream.flatMap() does.
      * You won't miss much if you skip this, but it is tested and is used in some of the example code.
      */
-    public static <E, A, B> List<Validation<E, B>> flatMapInputs(final List<Validation<E, A>> inputs, final Function<A, Validation<E, B>> f) {
-        throw new UnsupportedOperationException("not implemented yet");
+    public static <E, A, B> List<Validation<E, B>> flatMapInputs(final List<Validation<E, A>> inputs, final Function<A, Validation<E, B>> f) {        
+        return inputs.stream().map((v) -> v.flatMap(f)).collect(Collectors.toList());
     }
 
     /**
@@ -177,8 +296,16 @@ public abstract class Validation<E, T> {
      *      Many things can be implemented in terms of fold and apply.
      *      Consider making Validation.apply() final before continuing, as this should help make its structure clear.
      */
-    public /*final*/ <U> Validation<E, U> apply(final Validation<E, Function<T, U>> functionValidation) {
-        throw new UnsupportedOperationException("not implemented yet");
+    public final <U> Validation<E, U> apply(final Validation<E, Function<T, U>> functionValidation) {
+        return fold(
+            errors -> functionValidation.fold(
+                errors2 -> this.<U>makeFailure(combineLists(errors, errors2)),
+                func -> this.<U>makeFailure(errors)
+            ),
+            value -> functionValidation.fold(
+                errors -> this.<U>makeFailure(errors),
+                func -> makeSuccess(func.apply(value))
+            ));
     }
 
     /**
@@ -188,7 +315,24 @@ public abstract class Validation<E, T> {
      * The given list should be considered in order.
      */
     public static <E, T> Validation<E, List<T>> sequence(final List<Validation<E, T>> validations) {
-        throw new UnsupportedOperationException("not implemented yet");
+        
+        List<E> errors = new ArrayList<>();
+        List<T> values = new ArrayList<>();
+        
+        validations.forEach(validation ->
+        {
+            validation.ifSuccess(t -> values.add(t));
+            validation.ifFailure(es -> errors.addAll(es));
+        });
+        
+        if (errors.isEmpty())
+        {
+            return success(values);
+        }
+        else
+        {
+            return failure(errors);
+        }
     }
 
     /**
@@ -198,8 +342,14 @@ public abstract class Validation<E, T> {
      * The given list should be considered in order.
      * Once it can be determined that the return value will represent a failure, no further invocations of the given function should occur.
      */
-    public static <E, T, U> Validation<E, List<U>> traverse(final List<Validation<E, T>> validations, final Function<T, U> f) {
-        throw new UnsupportedOperationException("not implemented yet");
+    public static <E, T, R> Validation<E, List<R>> traverse(final List<Validation<E, T>> validations, final Function<T, R> f) {
+        
+        Validation<E, List<T>> sequence = sequence(validations);
+        
+        return sequence.fold(
+            es -> Validation.<E,List<R>>failure(es),
+            l -> Validation.<E,List<R>>success(l.stream().map(f).collect(Collectors.toList()))
+        );
     }
 
     /**
@@ -208,7 +358,11 @@ public abstract class Validation<E, T> {
      */
     public static <E, A, B, R> Validation<E, R> map2(final Validation<E, A> va, final Validation<E, B> vb,
                                                      final Function<A, Function<B, R>> f) {
-        throw new UnsupportedOperationException("not implemented yet");
+        
+        return va.fold(
+            errors -> Validation.<E,R>failure(reduceErrors(new ArrayList<>(), va, vb)),
+            a -> vb.map(f.apply(a))
+        );
     }
 
     /**
@@ -217,7 +371,10 @@ public abstract class Validation<E, T> {
      */
     public static <E, A, B, C, R> Validation<E, R> map3(final Validation<E, A> va, final Validation<E, B> vb, final Validation<E, C> vc,
                                                         final Function<A, Function<B, Function<C, R>>> f) {
-        throw new UnsupportedOperationException("not implemented yet");
+        return va.fold(
+            errors -> Validation.<E,R>failure(reduceErrors(new ArrayList<>(), va, vb, vc)),
+            a -> map2(vb, vc, f.apply(a))
+        );
     }
 
     /**
@@ -228,18 +385,9 @@ public abstract class Validation<E, T> {
      */
     public static <E, A, B, C, D, R> Validation<E, R> map4(final Validation<E, A> va, final Validation<E, B> vb, final Validation<E, C> vc, final Validation<E, D> vd,
                                                            final Function<A, Function<B, Function<C, Function<D, R>>>> f) {
-        throw new UnsupportedOperationException("not implemented yet");
+        return va.fold(
+            errors -> Validation.<E,R>failure(reduceErrors(new ArrayList<>(), va, vb, vc, vd)),
+            a -> map3(vb, vc, vd, f.apply(a))
+        );
     }
-
-    /*
-    Do *not* implement the following, or anything isomorphic.
-
-    public T get() {
-        throw new UnsupportedOperationException("no cheating");
-    }
-
-    public List<E> getFailures() {
-        throw new UnsupportedOperationException("no cheating");
-    }
-    */
 }

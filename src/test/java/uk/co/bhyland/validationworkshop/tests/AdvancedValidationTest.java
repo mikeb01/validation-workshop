@@ -1,19 +1,23 @@
 package uk.co.bhyland.validationworkshop.tests;
 
-import org.junit.Test;
-import uk.co.bhyland.validationworkshop.Failure;
-import uk.co.bhyland.validationworkshop.Validation;
+import static org.junit.Assert.assertThat;
+import static uk.co.bhyland.validationworkshop.Failure.NOT_MY_FAULT_GUV;
+import static uk.co.bhyland.validationworkshop.Failure.OH_DEAR;
+import static uk.co.bhyland.validationworkshop.Failure.WHAT_A_PITY;
+import static uk.co.bhyland.validationworkshop.TestUtils.failTheTestIfCalledFunction;
+import static uk.co.bhyland.validationworkshop.TestUtils.isFailureOf;
+import static uk.co.bhyland.validationworkshop.TestUtils.isSuccessOf;
+import static uk.co.bhyland.validationworkshop.Validation.failure;
+import static uk.co.bhyland.validationworkshop.Validation.success;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-import static uk.co.bhyland.validationworkshop.Failure.*;
-import static uk.co.bhyland.validationworkshop.TestUtils.*;
-import static uk.co.bhyland.validationworkshop.Validation.failure;
-import static uk.co.bhyland.validationworkshop.Validation.success;
+import org.junit.Test;
+
+import uk.co.bhyland.validationworkshop.Failure;
+import uk.co.bhyland.validationworkshop.Validation;
 
 public class AdvancedValidationTest {
 
@@ -123,9 +127,11 @@ public class AdvancedValidationTest {
         final Validation<Failure, String> formatted1 = Validation.map3(v1, v2, v3, a -> b -> c -> String.format("%s %d %s", a, b, c));
         final Validation<Failure, String> formatted2 = Validation.map3(v4, v5, v1, failTheTestIfCalledFunction());
         final Validation<Failure, String> formatted3 = Validation.map3(v3, v4, v5, a -> b -> c -> String.format("%s %s %d", a, b, c));
+        final Validation<Failure, String> formatted4 = Validation.map3(v4, v2, v5, a -> b -> c -> String.format("%s %s %d", a, b, c));
 
         assertThat(formatted1, isSuccessOf("woo 3 yay"));
         assertThat(formatted2, isFailureOf(OH_DEAR, WHAT_A_PITY, NOT_MY_FAULT_GUV));
         assertThat(formatted3, isFailureOf(OH_DEAR, WHAT_A_PITY, NOT_MY_FAULT_GUV));
+        assertThat(formatted4, isFailureOf(OH_DEAR, WHAT_A_PITY, NOT_MY_FAULT_GUV));
     }
 }
