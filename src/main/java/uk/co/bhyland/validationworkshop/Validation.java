@@ -56,8 +56,8 @@ public abstract class Validation<E, T> {
             return ifFailure.apply(this, failures);
         }
 
-        private <U> Validation<E, U> recast() {
-            return (Validation<E, U>) this;
+        private <U> Failure<E, U> recast() {
+            return (Failure<E, U>) this;
         }
 
         @Override
@@ -234,7 +234,6 @@ public abstract class Validation<E, T> {
      * The given function should only be invoked if its return value is required.
      */
     public <U> Validation<E, U> map(final Function<T, U> f) {
-
         return biFold(
             (v, e) -> v.<U>recast(),
             (v, t) -> makeSuccess(f.apply(t))
@@ -247,7 +246,6 @@ public abstract class Validation<E, T> {
      * The given function should only be invoked if its return value is required.
      */
     public <U> Validation<E, U> flatMap(final Function<T, Validation<E, U>> f) {
-
         return biFold(
             (v, e) -> v.<U>recast(),
             (v, t) -> f.apply(t)
