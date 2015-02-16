@@ -203,13 +203,9 @@ public abstract class Validation<E, T> {
      * Not tested: implementing this is optional.
      */
     public final void ifSuccess(final Consumer<T> ifSuccess) {
-        fold(
-            es -> null,
-            s -> {
-                ifSuccess.accept(s);
-                return null;
-            }
-        );
+        consume(
+            es -> {},
+            s -> ifSuccess.accept(s));
     }
 
     /**
@@ -219,12 +215,9 @@ public abstract class Validation<E, T> {
      * Not tested: implementing this is optional.
      */
     public final void ifFailure(final Consumer<List<E>> ifFailure) {
-        fold(
-            es -> {
-                ifFailure.accept(es);
-                return null;
-            },
-            s -> null
+        consume(
+            es -> ifFailure.accept(es),
+            s -> {}
         );
     }
 
